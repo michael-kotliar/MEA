@@ -82,39 +82,28 @@ function detectAllelicConcatenated {
     
     local PARAM_INPUT_SAM=$1
     local PARAM_STRAIN=$2
-    local PARAM_REFFASTA=$3
-    local PARAM_QUALITY=$4
-    local PARAM_OUT_PREFIX=$5
+    local PARAM_QUALITY=$3
+    local PARAM_OUT_PREFIX=$4
     
     # output header first
-    samtools view -SH "$PARAM_INPUT_SAM" \
+    samtools view -H "$PARAM_INPUT_SAM" \
         | awk -v ref="$PARAM_STRAIN" '($0 ~ ref) {print $0}' \
         | sed 's/'"$PARAM_STRAIN"'_//g' \
         > "$PARAM_OUT_PREFIX".sam
     
     # append reads
-    samtools view -S $PARAM_INPUT_SAM \
+    samtools view $PARAM_INPUT_SAM \
         | awk -v ref="$PARAM_STRAIN" '(($3 ~ ref)&&($5'"$PARAM_QUALITY"')) {print $0}' \
         | sed 's/'"$PARAM_STRAIN"'_//g' \
         >> "$PARAM_OUT_PREFIX".sam
     
     # convert to bam
-    samtools view -bt $PARAM_REFFASTA "$PARAM_OUT_PREFIX".sam > "$PARAM_OUT_PREFIX".unsorted.bam
+    samtools view -b "$PARAM_OUT_PREFIX".sam > "$PARAM_OUT_PREFIX".unsorted.bam
     
     # sort by coordinates
-    samtools sort "$PARAM_OUT_PREFIX".unsorted.bam "$PARAM_OUT_PREFIX"
-    
-    if [ -f "$PARAM_OUT_PREFIX".bam ]
-    then
-        printProgress "[detectAllelicConcatenated] Filtered BAM file created."
-        # remove temp files
-        printProgress "[detectAllelicConcatenated] Removing temporary SAM files."
-        rm -f "$PARAM_OUT_PREFIX".sam
-        rm -f "$PARAM_OUT_PREFIX".unsorted.bam
-    else
-        printProgress "[detectAllelicConcatenated] ERROR: Filtered BAM file was not created."
-    fi
-    printProgress "[detectAllelicConcatenated] Done"
+    samtools sort "$PARAM_OUT_PREFIX".unsorted.bam -o "$PARAM_OUT_PREFIX"
+    rm -f "$PARAM_OUT_PREFIX".sam
+    rm -f "$PARAM_OUT_PREFIX".unsorted.bam
 }
 
 
@@ -123,38 +112,30 @@ function detectAllelicConcatenated {
 #------------------------------------------------------------------------------------
 
 if [ $PARAM_SINGLE_READS = 1 ]; then
-    #align single-end reads to concatenated insilico genome
-    printProgress "align to concatenated insilico genome"
-     STAR --runMode alignReads --genomeDir "$PARAM_GENOME" "$MEA_STAR_ALN_PARAMS" --readFilesIn "$PARAM_FASTQ_FILE"
+    STAR --runMode alignReads --genomeDir "$PARAM_GENOME" "$MEA_STAR_ALN_PARAMS" --readFilesIn "$PARAM_FASTQ_FILE"
     mv Aligned.out.sam "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN1"_"$PARAM_STRAIN2".sam
     mv Log.out "$PARAM_BAM_PREFIX"_STAR_RunParameters.tsv
     mv Log.final.out "$PARAM_BAM_PREFIX"_STAR_AlignmentSummary.tsv
-    printProgress "align to reference genome"
     STAR --runMode alignReads --genomeDir "$PARAM_REFERENCE_GENOME" "$MEA_STAR_ALN_TOTAL_PARAMS" --readFilesIn "$PARAM_FASTQ_FILE"
     mv Aligned.out.sam "$PARAM_BAM_PREFIX"_total.sam
-    samtools view -bShu "$PARAM_BAM_PREFIX"_total.sam | samtools sort - "$PARAM_BAM_PREFIX"_total
+    samtools view -bhu "$PARAM_BAM_PREFIX"_total.sam | samtools sort -o "$PARAM_BAM_PREFIX"_total
     samtools index "$PARAM_BAM_PREFIX"_total.bam
     mv Log.out "$PARAM_BAM_PREFIX"_total_STAR_referenceRunParameters.tsv
     mv Log.final.out "$PARAM_BAM_PREFIX"_total_STAR_referenceAlignmentSummary.tsv
-    printProgress "detecting allelic reads"
     detectAllelicConcatenated "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN1"_"$PARAM_STRAIN2".sam "$PARAM_STRAIN1" "$PARAM_GENOME" "== 255" "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN1"
     detectAllelicConcatenated "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN1"_"$PARAM_STRAIN2".sam "$PARAM_STRAIN2" "$PARAM_GENOME" "== 255" "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN2"
     rm SJ.out.tab Log.progress.out
 else #[ $PARAM_SINGLE_READS = 0 ]
-    #align paired-end reads to concatenated insilico genome
-    printProgress "align to the insilico concatenated genome"
     STAR --runMode alignReads --genomeDir "$PARAM_GENOME" "$MEA_STAR_ALN_PARAMS" --readFilesIn "$PARAM_FASTQ_FILE1" "$PARAM_FASTQ_FILE2"
     mv Aligned.out.sam "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN1"_"$PARAM_STRAIN2".sam
     mv Log.out "$PARAM_BAM_PREFIX"_STAR_RunParameters.tsv
     mv Log.final.out "$PARAM_BAM_PREFIX"_STAR_AlignmentSummary.tsv
-    printProgress "align to the reference genome"
     STAR --runMode alignReads --genomeDir "$PARAM_REFERENCE_GENOME" "MEA_STAR_ALN_TOTAL_PARAMS" --readFilesIn "$PARAM_FASTQ_FILE1" "$PARAM_FASTQ_FILE2"
     mv Aligned.out.sam "$PARAM_BAM_PREFIX"_total.sam
-    samtools view -bShu "$PARAM_BAM_PREFIX"_total.sam | samtools sort - "$PARAM_BAM_PREFIX"_total
+    samtools view -bhu "$PARAM_BAM_PREFIX"_total.sam | samtools sort -o "$PARAM_BAM_PREFIX"_total
     samtools index "$PARAM_BAM_PREFIX"_total.bam
     mv Log.out "$PARAM_BAM_PREFIX"_total_STAR_referenceRunParameters.tsv
     mv Log.final.out "$PARAM_BAM_PREFIX"_total_STAR_referenceAlignmentSummary.tsv
-    printProgress "detecting allelic reads"
     detectAllelicConcatenated "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN1"_"$PARAM_STRAIN2".sam "$PARAM_STRAIN1" "$PARAM_GENOME" "== 255" "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN1"
     detectAllelicConcatenated "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN1"_"$PARAM_STRAIN2".sam "$PARAM_STRAIN2" "$PARAM_GENOME" "== 255" "$PARAM_BAM_PREFIX"_"$PARAM_STRAIN2"
     rm SJ.out.tab Log.progress.out
