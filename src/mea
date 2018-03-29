@@ -1,31 +1,16 @@
 #!/bin/bash
-# get the full path to itself
-pushd `dirname $0` > /dev/null
-MEA_DIR_TOOLS=`pwd -P`
-popd > /dev/null
 
-# MANUAL INSTALLATION
-#source $MEA_DIR_TOOLS/mea.config
-# DOCKER INSTALLATION
-if [ -f /mea-data/mea.config ]
-then
-    source /mea-data/mea.config
-else
-    source $MEA_DIR_TOOLS/mea.config
-fi
-
+MEA_BIN=`dirname $0`
+source $MEA_BIN/mea.config
 
 function usage {
     echo "
 Program: MEA (a Methylomic and Epigenomic Allele-specific analysis pipeline)
-Version: $MEA_VERSION
 Contact: Hamid Younesy <hyounesy@bcgsc.ca> Julien Richard Albert <jrichardalbert@gmail.com>
 
 Usage:   mea <command> [options]
 
-Command: setting        configure MEA interactively and modifies confing
-                        (.setting and .config)
-                        
+Command:
          phaseVCF       creates phased VCF file from an unphased VCF and
                         haplotypes (.haps)
                         
@@ -48,28 +33,24 @@ then
     shift
     
     case $VAR_COMMAND in
-        setting)
-            $MEA_DIR_TOOLS/setting.sh $@
-            ;;
-
         phaseVCF)
-            $MEA_DIR_TOOLS/phaseVCF.sh $@
+            $MEA_BIN/phaseVCF.sh $@
             ;;
             
         createGenome)
-            $MEA_DIR_TOOLS/createGenome.sh $@
+            $MEA_BIN/createGenome.sh $@
             ;;
 
         alignReads)
-            $MEA_DIR_TOOLS/alignReads.sh $@
+            $MEA_BIN/alignReads.sh $@
             ;;
 
         createTracks)
-            $MEA_DIR_TOOLS/createTracks.sh $@
+            $MEA_BIN/createTracks.sh $@
             ;;
             
         createReport)
-            $MEA_DIR_TOOLS/createReport.sh $@
+            $MEA_BIN/createReport.sh $@
             ;;
             
         -h )
@@ -84,7 +65,6 @@ then
     esac
     
     VAR_CODE=$?
-    #echo "$VAR_COMMAND returned with exit code: $VAR_CODE" 
     exit $VAR_CODE
 fi
 

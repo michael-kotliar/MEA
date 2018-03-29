@@ -1,13 +1,7 @@
 #!/bin/bash
 
-pushd `dirname $0` > /dev/null
-MEA_DIR_TOOLS=`pwd -P` # get the full path to itself
-popd > /dev/null
-
-# MANUAL INSTALLATION
-#source $MEA_DIR_TOOLS/mea.config
-# DOCKER INSTALLATION
-source /mea-data/mea.config
+MEA_BIN=`dirname $0`
+source $MEA_BIN/mea.config
 
 ##############################################################################
 #############   Module 2: creating insilico genome
@@ -17,26 +11,19 @@ if test $# -lt 4
 then
     echo "
 Usage:
-         $MEA createGenome phased.vcf.gz strain1 strain2 outputDir
-         $MEA createGenome -snps-indels-separately phased_snps.vcf.gz phased_indels.vcf.gz strain1 strain2 outputDir
+         mea createGenome reference_genome.fa phased_snps.vcf.gz phased_indels.vcf.gz strain1 strain2 outputDir
 
 Options:
-         phased.vcf.gz          the phased variants vcf file (including SNPs and Indels)
+         reference_genome.fa    path to the .fa file of the reference genome, better to have .fai file alongside the .fa
+         phased-snps.vcf.gz     phased SNPs (should be specified first)
+         phased-indels.vcf.gz   phased Indels  (should be specified second)
          strain1                name of strain1 exactly as specified in the vcf file (e.g. hap1)
          strain2                name of strain2 exactly as specified in the vcf file (e.g. hap2)
          outputDir              location of the output directory
-         
-         -snps-indels-separately    use if SNPs and Indels are in two separate vcf files
-         phased-snps.vcf.gz         the phased SNPs (should be specified first)
-         phased-indels.vcf.gz       the phased Indels  (should be specified second)
 
 Output:
          Creates two parental insilico genomes strain1.fasta and strain2.fasta as well
          as alignment indeces.
-         
-Note:
-         It is possible to have SNPs and Indels in two separate vcf files. In that case
-         use -snps-indels-separately option, and make sure you specify SNPs before Indels.         
 "
 exit 1
 fi
@@ -120,143 +107,81 @@ function createRefStrRefmap {
     printProgress "[createRefStrRefmap] Done"
 }
 
+
 ## creates the insilico genome for each haplotype
-#function createInsilicoGenome {
-    printProgress "[createGenome] Started"
-    
-    if [ "$1" = "-snps-indels-separately" ]; then
-        
-        PARAM_INPUT_FASTA=$MEA_REFERENCE_GENOME
-        PARAM_INPUT_VCF_SNPS=$2
-        PARAM_INPUT_VCF_INDELS=$3
-        PARAM_STRAIN1=$4
-        PARAM_STRAIN2=$5
-        PARAM_OUTPUT_DIR=$6
-        
-        meaCheckFileExists $PARAM_INPUT_VCF_SNPS
-        meaCheckFileExists $PARAM_INPUT_VCF_INDELS
-        meaCheckFileExists $PARAM_INPUT_FASTA
-        meaCreateDir $PARAM_OUTPUT_DIR
-        
-        if [ ! -f "$PARAM_INPUT_FASTA".fai ]; then
-            printProgress "[createGenome] Indexing Reference"
-            $MEA_BIN_SAMTOOLS faidx "$PARAM_INPUT_FASTA"
-        fi
-        
-        if [ $PARAM_STRAIN1 = $VAR_REFERENCE_STRAIN ]; then
-            # copy reference genome as reference stain name
-            VAR_FASTA1="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1".fasta
-            cp "$PARAM_INPUT_FASTA" "$VAR_FASTA1"
-            cp "$PARAM_INPUT_FASTA".fai "$VAR_FASTA1".fai
-            # create a refmap file for reference strain
-            createRefStrRefmap "$VAR_FASTA1".fai "$VAR_FASTA1".refmap
-        else
-            VAR_GENOME1_SNPS="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1".snps.fasta
-            # create insilico genome for strain 1 snps using reference
-            $MEA_BIN_MEA insilico \
-                --input-fasta="$PARAM_INPUT_FASTA" \
-                --input-vcf="$PARAM_INPUT_VCF_SNPS" \
-                --strain="$PARAM_STRAIN1" \
-                --output-fasta="$VAR_GENOME1_SNPS"
-            
-            VAR_FASTA1="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1".fasta
-            # create insilico genome for strain 1 indels using ref+snps (previously created)
-            $MEA_BIN_MEA insilico \
-                --input-fasta="$VAR_GENOME1_SNPS" \
-                --input-vcf="$PARAM_INPUT_VCF_INDELS" \
-                --strain="$PARAM_STRAIN1" \
-                --output-fasta="$VAR_FASTA1"
-            
-            if [ $MEA_DEBUG = 0 ]; then
-                #remove partial files
-                rm -f "$VAR_GENOME1_SNPS"*
-            fi
-        fi
-        
-        if [ $PARAM_STRAIN2 = $VAR_REFERENCE_STRAIN ]; then
-            # copy reference genome as reference stain name
-            VAR_FASTA2="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN2".fasta
-            cp "$PARAM_INPUT_FASTA" "$VAR_FASTA2"
-            cp "$PARAM_INPUT_FASTA".fai "$VAR_FASTA2".fai
-            # create a refmap file for reference strain
-            createRefStrRefmap "$VAR_FASTA2".fai "$VAR_FASTA2".refmap
-        else
-            VAR_GENOME2_SNPS="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN2".snps.fasta
-            # create insilico genome for strain 2 snps using reference
-            $MEA_BIN_MEA insilico \
-                --input-fasta="$PARAM_INPUT_FASTA" \
-                --input-vcf="$PARAM_INPUT_VCF_SNPS" \
-                --strain="$PARAM_STRAIN2" \
-                --output-fasta="$VAR_GENOME2_SNPS"
-            
-            VAR_FASTA2="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN2".fasta
-            
-            # create insilico genome for strain 2 indels using ref+snps (previously created)
-            $MEA_BIN_MEA insilico \
-                --input-fasta="$VAR_GENOME2_SNPS" \
-                --input-vcf="$PARAM_INPUT_VCF_INDELS" \
-                --strain="$PARAM_STRAIN2" \
-                --output-fasta="$VAR_FASTA2"
-            
-            if [ $MEA_DEBUG = 0 ]; then
-                #remove partial files
-                rm -f "$VAR_GENOME2_SNPS"*
-            fi
-        fi
-        
-    else
-        #all varients (snps and indels) are in a single vcf file
-        
-        PARAM_INPUT_FASTA=$MEA_REFERENCE_GENOME
-        PARAM_INPUT_VCF=$1
-        PARAM_STRAIN1=$2
-        PARAM_STRAIN2=$3
-        PARAM_OUTPUT_DIR=$4
-        
-        meaCheckFileExists $PARAM_INPUT_VCF
-        meaCheckFileExists $PARAM_INPUT_FASTA
-        meaCreateDir $PARAM_OUTPUT_DIR
-        
-        if [ ! -f "$PARAM_INPUT_FASTA".fai ]; then
-            printProgress "[createGenome] Indexing Reference"
-            $MEA_BIN_SAMTOOLS faidx "$PARAM_INPUT_FASTA"
-        fi
-        
-        if [ $PARAM_STRAIN1 = $VAR_REFERENCE_STRAIN ]; then
-            # copy reference genome as reference stain name
-            VAR_FASTA1="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1".fasta
-            cp "$PARAM_INPUT_FASTA" "$VAR_FASTA1"
-            cp "$PARAM_INPUT_FASTA".fai "$VAR_FASTA1".fai
-            # create a refmap file for reference strain
-            createRefStrRefmap "$VAR_FASTA1".fai "$VAR_FASTA1".refmap
-        else
-            VAR_FASTA1="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1".fasta
-            # create insilico genome for strain 1    
-            $MEA_BIN_MEA insilico \
-                --input-fasta="$PARAM_INPUT_FASTA" \
-                --input-vcf="$PARAM_INPUT_VCF" \
-                --strain="$PARAM_STRAIN1" \
-                --output-fasta="$VAR_FASTA1"
-        fi
-        
-        if [ $PARAM_STRAIN2 = $VAR_REFERENCE_STRAIN ]; then
-            # copy reference genome as reference stain name
-            VAR_FASTA2="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN2".fasta
-            cp "$PARAM_INPUT_FASTA" "$VAR_FASTA2"
-            cp "$PARAM_INPUT_FASTA".fai "$VAR_FASTA2".fai
-            # create a refmap file for reference strain
-            createRefStrRefmap "$VAR_FASTA2".fai "$VAR_FASTA2".refmap
-        else
-            VAR_FASTA2="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN2".fasta
-            # create insilico genome for strain 2
-            $MEA_BIN_MEA insilico \
-                --input-fasta="$PARAM_INPUT_FASTA" \
-                --input-vcf="$PARAM_INPUT_VCF" \
-                --strain="$PARAM_STRAIN2" \
-                --output-fasta="$VAR_FASTA2"
-        fi
-    fi
-    
+printProgress "[createGenome] Started"
+
+PARAM_INPUT_FASTA=$1
+PARAM_INPUT_VCF_SNPS=$2
+PARAM_INPUT_VCF_INDELS=$3
+PARAM_STRAIN1=$4
+PARAM_STRAIN2=$5
+PARAM_OUTPUT_DIR=$6
+
+meaCheckFileExists $PARAM_INPUT_FASTA
+meaCheckFileExists $PARAM_INPUT_VCF_SNPS
+meaCheckFileExists $PARAM_INPUT_VCF_INDELS
+meaCheckFileExists $PARAM_INPUT_FASTA
+meaCreateDir       $PARAM_OUTPUT_DIR
+
+if [ ! -f "$PARAM_INPUT_FASTA".fai ]; then
+    printProgress "[createGenome] Indexing Reference"
+    samtools faidx "$PARAM_INPUT_FASTA"
+fi
+
+if [ $PARAM_STRAIN1 = $VAR_REFERENCE_STRAIN ]; then
+    # copy reference genome as reference stain name
+    VAR_FASTA1="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1".fasta
+    cp "$PARAM_INPUT_FASTA" "$VAR_FASTA1"
+    cp "$PARAM_INPUT_FASTA".fai "$VAR_FASTA1".fai
+    # create a refmap file for reference strain
+    createRefStrRefmap "$VAR_FASTA1".fai "$VAR_FASTA1".refmap
+else
+    VAR_GENOME1_SNPS="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1".snps.fasta
+    # create insilico genome for strain 1 snps using reference
+    $ALEA_JAR insilico \
+        --input-fasta="$PARAM_INPUT_FASTA" \
+        --input-vcf="$PARAM_INPUT_VCF_SNPS" \
+        --strain="$PARAM_STRAIN1" \
+        --output-fasta="$VAR_GENOME1_SNPS"
+    VAR_FASTA1="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1".fasta
+    # create insilico genome for strain 1 indels using ref+snps (previously created)
+    $ALEA_JAR insilico \
+        --input-fasta="$VAR_GENOME1_SNPS" \
+        --input-vcf="$PARAM_INPUT_VCF_INDELS" \
+        --strain="$PARAM_STRAIN1" \
+        --output-fasta="$VAR_FASTA1"
+    rm -f "$VAR_GENOME1_SNPS"*
+fi
+
+
+if [ $PARAM_STRAIN2 = $VAR_REFERENCE_STRAIN ]; then
+    # copy reference genome as reference stain name
+    VAR_FASTA2="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN2".fasta
+    cp "$PARAM_INPUT_FASTA" "$VAR_FASTA2"
+    cp "$PARAM_INPUT_FASTA".fai "$VAR_FASTA2".fai
+    # create a refmap file for reference strain
+    createRefStrRefmap "$VAR_FASTA2".fai "$VAR_FASTA2".refmap
+else
+    VAR_GENOME2_SNPS="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN2".snps.fasta
+    # create insilico genome for strain 2 snps using reference
+    $ALEA_JAR insilico \
+        --input-fasta="$PARAM_INPUT_FASTA" \
+        --input-vcf="$PARAM_INPUT_VCF_SNPS" \
+        --strain="$PARAM_STRAIN2" \
+        --output-fasta="$VAR_GENOME2_SNPS"
+
+    VAR_FASTA2="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN2".fasta
+    # create insilico genome for strain 2 indels using ref+snps (previously created)
+    $ALEA_JAR insilico \
+        --input-fasta="$VAR_GENOME2_SNPS" \
+        --input-vcf="$PARAM_INPUT_VCF_INDELS" \
+        --strain="$PARAM_STRAIN2" \
+        --output-fasta="$VAR_FASTA2"
+
+    rm -f "$VAR_GENOME2_SNPS"*
+fi
+
 VAR_FASTA_CONCAT="$PARAM_OUTPUT_DIR"/"$PARAM_STRAIN1"_"$PARAM_STRAIN2".fasta
 concatFasta "$VAR_FASTA1" "$VAR_FASTA2" "$PARAM_STRAIN1" "$PARAM_STRAIN2" "$VAR_FASTA_CONCAT"
 
@@ -314,9 +239,8 @@ if [ $MEA_USE_STAR = 1 ]; then
 	
 fi
 
-$MEA_BIN_SAMTOOLS faidx "$VAR_FASTA_CONCAT"
+samtools faidx "$VAR_FASTA_CONCAT"
 
 createFastaIndex "$VAR_FASTA_CONCAT" "$PARAM_STRAIN1"_"$PARAM_STRAIN2" "$PARAM_OUTPUT_DIR"
 createFastaIndex "$MEA_REFERENCE_GENOME" "$MEA_BUILD" "$MEA_DIR_REFERENCES"
 printProgress "[createGenome] Done"
-#}
