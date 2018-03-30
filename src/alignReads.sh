@@ -132,7 +132,7 @@ else #[ $PARAM_SINGLE_READS = 0 ]
     mv Log.final.out "$PARAM_BAM_PREFIX"_STAR_AlignmentSummary.tsv
     STAR --runMode alignReads --genomeDir "$PARAM_REFERENCE_GENOME" "MEA_STAR_ALN_TOTAL_PARAMS" --readFilesIn "$PARAM_FASTQ_FILE1" "$PARAM_FASTQ_FILE2"
     mv Aligned.out.sam "$PARAM_BAM_PREFIX"_total.sam
-    samtools sort $PARAM_BAM_PREFIX"_total.sam -o "$PARAM_BAM_PREFIX"_total.bam
+    samtools sort "$PARAM_BAM_PREFIX"_total.sam -o "$PARAM_BAM_PREFIX"_total.bam
     samtools index "$PARAM_BAM_PREFIX"_total.bam
     mv Log.out "$PARAM_BAM_PREFIX"_total_STAR_referenceRunParameters.tsv
     mv Log.final.out "$PARAM_BAM_PREFIX"_total_STAR_referenceAlignmentSummary.tsv
